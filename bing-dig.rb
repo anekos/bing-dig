@@ -11,11 +11,13 @@
 require 'dotenv'
 require 'json'
 require 'uri'
+require 'time'
+require 'pp'
 
 if __FILE__ == $0
   if ARGV.empty?
     puts <<EOT
-bing-dig [--aspect X] [--color X] [--width X] [--height X] [--size X] [--license X] [--imageType X] [--imageContent X] [--freshness X] <QUERY...>
+bing-dig [--aspect X] [--color X] [--width X] [--height X] [--size X] [--license X] [--imageType X] [--imageContent X] [--freshness X] [--pages X] <QUERY...>
 
 # Option values
 aspect
@@ -38,14 +40,28 @@ EOT
     exit 1
   end
 
+  PAGE_SIZE = 150
+
   Dotenv.load
 
+  args = ARGV.dup
   key = ENV['BING_SEARCH_API_KEY1']
+  pages = 1
+  offset = 0
   params = {}
   q = []
-  while it = ARGV.shift
+  while it = args.shift
     if m = it.match(/^--(.+)/)
-      params[m[1]] = ARGV.shift
+      name = m[1]
+
+      case name
+      when 'pages', 'p'
+        pages = args.shift.to_i
+      when 'offset', 'o'
+        offset = args.shift.to_i
+      else
+        params[name] = args.shift
+      end
     else
       q << it
     end
@@ -54,22 +70,47 @@ EOT
   require 'net/http'
 
   uri = URI('https://api.cognitive.microsoft.com/bing/v5.0/images/search')
-  uri.query = URI.encode_www_form({
-    'q' => q.join(' '),
-    'count' => 150
-  }.merge(params))
+  # uri = URI('https://api.cognitive.microsoft.com/bing/v7.0/images/trending')
 
-  request = Net::HTTP::Post.new(uri.request_uri)
-  request['Content-Type'] = 'multipart/form-data'
-  request['Ocp-Apim-Subscription-Key'] = key
-  request.body = "{body}"
+  pages.times.each do |page|
 
-  response = Net::HTTP.start(uri.host, uri.port, :use_ssl => uri.scheme == 'https') do |http|
-    http.request(request)
-  end
+    merged = {
+      'q' => q.join(' '),
+      'count' => PAGE_SIZE,
+      'offset' => offset + page * PAGE_SIZE,
+    }.merge(params)
 
-  JSON.parse(response.body)['value'].each do
-    |it|
-    puts URI.unescape(URI(it['contentUrl']).query.split('&').map {|it| it.split(/=/, 2) } .select {|it| it.first == 'r' } .first.last)
+    uri.query = URI.encode_www_form(merged)
+
+    IO.write(
+      File.expand_path('~/data/log/misc/bing-dig-history'),
+      "#{Time.now}\t#{ARGV}\n",
+      mode: 'a')
+
+    request = Net::HTTP::Get.new(uri.request_uri)
+    request['Content-Type'] = 'multipart/form-data'
+    request['Ocp-Apim-Subscription-Key'] = key
+    request.body = "{body}"
+
+    response = Net::HTTP.start(uri.host, uri.port, :use_ssl => uri.scheme == 'https') do |http|
+      http.request(request)
+    end
+
+    unless Net::HTTPOK === response
+      pp JSON.parse(response.body)
+      exit 1
+    end
+
+    result = JSON.parse(response.body)
+
+    if result['_type'] == 'ErrorResponse'
+      pp result
+      exit 1
+    end
+
+    result['value'].each do
+      |it|
+      puts URI.unescape(URI(it['contentUrl']).query.split('&').map {|it| it.split(/=/, 2) } .select {|it| it.first == 'r' } .first.last)
+    end
   end
 end

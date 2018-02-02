@@ -13,6 +13,8 @@ require 'json'
 require 'uri'
 require 'time'
 require 'pp'
+require 'shellwords'
+
 
 if __FILE__ == $0
   if ARGV.empty?
@@ -50,6 +52,7 @@ EOT
   offset = 0
   params = {}
   q = []
+  chrysoberyl_format = false
   while it = args.shift
     if m = it.match(/^--(.+)/)
       name = m[1]
@@ -59,6 +62,8 @@ EOT
         pages = args.shift.to_i
       when 'offset', 'o'
         offset = args.shift.to_i
+      when 'chrysoberyl'
+        chrysoberyl_format = true
       else
         params[name] = args.shift
       end
@@ -111,7 +116,23 @@ EOT
 
     result['value'].each do
       |it|
-      puts URI.unescape(URI(it['contentUrl']).query.split('&').map {|it| it.split(/=/, 2) } .select {|it| it.first == 'r' } .first.last)
+      url = URI.unescape(URI.parse(it['contentUrl']).query.split('&').map {|it| it.split('=', 2) } .to_h['r'])
+
+      args = {
+        :BING => 1,
+        :NAME => it['name'],
+        :HOST_PAGE => URI.unescape(URI.parse(it['hostPageUrl']).query.split('&').map {|it| it.split('=', 2) } .to_h['r']),
+      }.map do
+        |k, v|
+        "--meta #{k}=#{v.to_s.shellescape}"
+      end.join(' ')
+
+      if chrysoberyl_format
+        op = "@push-url #{args} #{url.shellescape}"
+        puts(op)
+      else
+        puts URI.unescape(URI(it['contentUrl']).query.split('&').map {|it| it.split(/=/, 2) } .select {|it| it.first == 'r' } .first.last)
+      end
     end
   end
 end

@@ -82,10 +82,11 @@ EOT
 
     uri.query = URI.encode_www_form(merged)
 
-    IO.write(
-      File.expand_path('~/data/log/misc/bing-dig-history'),
-      "#{Time.now}\t#{ARGV}\n",
-      mode: 'a')
+    begin
+      history_file = File.expand_path('~/.bing-dig.history')
+      IO.write(history_file, "#{Time.now}\t#{ARGV}\n", mode: 'a')
+    rescue
+    end
 
     request = Net::HTTP::Get.new(uri.request_uri)
     request['Content-Type'] = 'multipart/form-data'

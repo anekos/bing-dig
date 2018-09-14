@@ -16,6 +16,14 @@ require 'pp'
 require 'shellwords'
 
 
+module Utils
+  def self.extract_url (url)
+    # 古い形式??
+    # URI.unescape(URI.parse(url).query.split('&').map {|it| it.split('=', 2) } .to_h['r'])
+    url
+  end
+end
+
 if __FILE__ == $0
   if ARGV.empty?
     puts <<EOT
@@ -116,12 +124,12 @@ EOT
 
     result['value'].each do
       |it|
-      url = URI.unescape(URI.parse(it['contentUrl']).query.split('&').map {|it| it.split('=', 2) } .to_h['r'])
+      url = Utils.extract_url(it['contentUrl'])
 
       args = {
         :BING => 1,
         :NAME => it['name'],
-        :HOST_PAGE => URI.unescape(URI.parse(it['hostPageUrl']).query.split('&').map {|it| it.split('=', 2) } .to_h['r']),
+        :HOST_PAGE => Utils.extract_url(it['hostPageUrl'])
       }.map do
         |k, v|
         "--meta #{k}=#{v.to_s.shellescape}"
@@ -131,7 +139,9 @@ EOT
         op = "@push-url #{args} #{url.shellescape}"
         puts(op)
       else
-        puts URI.unescape(URI(it['contentUrl']).query.split('&').map {|it| it.split(/=/, 2) } .select {|it| it.first == 'r' } .first.last)
+        # FIXME
+        puts it['contentUrl']
+        # puts URI.unescape(URI(it['contentUrl']).query.split('&').map {|it| it.split(/=/, 2) } .select {|it| it.first == 'r' } .first.last)
       end
     end
   end

@@ -82,7 +82,7 @@ EOT
 
   require 'net/http'
 
-  uri = URI('https://api.cognitive.microsoft.com/bing/v5.0/images/search')
+  uri = URI('https://api.cognitive.microsoft.com/bing/v7.0/images/search')
   # uri = URI('https://api.cognitive.microsoft.com/bing/v7.0/images/trending')
 
   pages.times.each do |page|
